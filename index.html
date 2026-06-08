@@ -396,7 +396,7 @@ h2 {
   font-weight: 900;
 }
 
-.relationship-diagram {
+.question-context-text {
   margin: 0;
   overflow-x: auto;
   padding: 14px;
@@ -411,7 +411,7 @@ h2 {
   white-space: pre;
 }
 
-.relationship-note {
+.question-context-note {
   margin-top: 8px;
   color: var(--muted);
   font-size: 0.88rem;
@@ -709,10 +709,10 @@ h2 {
           <p class="question-source" id="question-source"></p>
           <h2 id="question-stem"></h2>
           <p class="question-text" id="question-text"></p>
-          <div class="question-context-frame" id="question-diagram-frame" hidden>
-            <p class="question-context-caption" id="question-diagram-caption"></p>
-            <pre class="relationship-diagram" id="question-diagram"></pre>
-            <p class="relationship-note" id="question-diagram-note"></p>
+          <div class="question-context-frame" id="question-context-frame" hidden>
+            <p class="question-context-caption" id="question-context-caption"></p>
+            <pre class="question-context-text" id="question-context-text"></pre>
+            <p class="question-context-note" id="question-context-note"></p>
           </div>
           <div class="choice-list" id="choice-list"></div>
         </article>
@@ -6051,6 +6051,11 @@ genres.push({
       source: "5-3 相続税額の計算および申告と納付 問2",
       stem: "設例における遺産に係る基礎控除額として、最も適切なものはどれか。",
       text: "法定相続人は妻、長女、長男の3人である。",
+      contextCaption: "設例",
+      contextLines: [
+        "2025年5月、非上場企業である甲社の社長C（95歳）が病死し、相続が開始した。",
+        "Cの家族構成は、妻（90歳）、長女（62歳）および長男（60歳）である。"
+      ],
       type: "single",
       answer: "4",
       choices: [
@@ -6067,6 +6072,11 @@ genres.push({
       source: "5-3 相続税額の計算および申告と納付 問3",
       stem: "設例における長男の法定相続分に応じた取得金額として、最も適切なものはどれか。",
       text: "課税価格の合計額は4億3,200万円、遺産に係る基礎控除額は4,800万円である。",
+      contextCaption: "設例",
+      contextLines: [
+        "2025年5月、非上場企業である甲社の社長C（95歳）が病死し、相続が開始した。",
+        "Cの家族構成は、妻（90歳）、長女（62歳）および長男（60歳）である。"
+      ],
       type: "single",
       answer: "1",
       choices: [
@@ -6083,6 +6093,16 @@ genres.push({
       source: "5-4 贈与税額の計算および申告と納付 問1",
       stem: "設例の会話の空欄にあてはまる語句として、最も適切なものはどれか。",
       text: "贈与に対する課税の方法は、暦年課税と（イ）の2つがある。",
+      contextCaption: "設例・会話",
+      contextLines: [
+        "Z（70歳）は、相続対策のひとつとして、家族に対する資産の生前贈与を検討している。",
+        "Zの家族構成は妻（67歳）および息子（25歳）である。",
+        "Zは贈与について知人のN税理士に相談することにした。",
+        "",
+        "Z：生前に資産の一部を贈与することを考えています。概要を教えていただけますでしょうか。",
+        "N税理士：贈与に対する課税の方法は、暦年課税と（イ）の2つがあります。ここでは暦年課税について見ていきましょう。",
+        "暦年課税における贈与税は、1月1日から12月31日の1年間に贈与を受けた財産の額から基礎控除額である110万円を差し引いた残りの額に対して課されます。"
+      ],
       type: "single",
       answer: "2",
       choices: [
@@ -6099,6 +6119,19 @@ genres.push({
       source: "5-4 贈与税額の計算および申告と納付 問2",
       stem: "Zが息子に対して暦年課税により2,000万円の現金を生前贈与した場合、贈与税の額として最も適切な数値はどれか。",
       text: "息子は25歳であり、父であるZから贈与を受ける。",
+      contextCaption: "設例・贈与税の速算表（一部抜粋）",
+      contextLines: [
+        "Z（70歳）は、相続対策のひとつとして、家族に対する資産の生前贈与を検討している。",
+        "Zの家族構成は妻（67歳）および息子（25歳）である。",
+        "",
+        "基礎控除後の課税価格      特例贈与財産       一般贈与財産",
+        "                         税率   控除額      税率   控除額",
+        "300万円超 400万円以下     15%   10万円      20%   25万円",
+        "400万円超 600万円以下     20%   30万円      30%   65万円",
+        "600万円超 1,000万円以下   30%   90万円      40%   125万円",
+        "1,000万円超 1,500万円以下 40%   190万円     45%   175万円",
+        "1,500万円超 3,000万円以下 45%   265万円     50%   250万円"
+      ],
       type: "single",
       answer: "1",
       choices: [
@@ -6749,20 +6782,21 @@ function renderQuestion() {
   document.querySelector("#question-source").textContent = question.source;
   document.querySelector("#question-stem").textContent = question.stem;
   document.querySelector("#question-text").textContent = question.text;
-  const diagramFrame = document.querySelector("#question-diagram-frame");
-  const diagramCaption = document.querySelector("#question-diagram-caption");
-  const diagram = document.querySelector("#question-diagram");
-  const diagramNote = document.querySelector("#question-diagram-note");
-  if (question.diagramLines) {
-    diagramCaption.textContent = question.diagramCaption ?? "補足図";
-    diagram.textContent = question.diagramLines.join("\n");
-    diagramNote.textContent = question.diagramNote ?? "原文の親族関係図をテキスト化しています。";
-    diagramFrame.hidden = false;
+  const contextFrame = document.querySelector("#question-context-frame");
+  const contextCaption = document.querySelector("#question-context-caption");
+  const contextText = document.querySelector("#question-context-text");
+  const contextNote = document.querySelector("#question-context-note");
+  const contextLines = question.diagramLines ?? question.contextLines;
+  if (contextLines) {
+    contextCaption.textContent = question.diagramCaption ?? question.contextCaption ?? "補足";
+    contextText.textContent = contextLines.join("\n");
+    contextNote.textContent = question.diagramNote ?? question.contextNote ?? "原文の設例・図表をテキスト化しています。";
+    contextFrame.hidden = false;
   } else {
-    diagramCaption.textContent = "";
-    diagram.textContent = "";
-    diagramNote.textContent = "";
-    diagramFrame.hidden = true;
+    contextCaption.textContent = "";
+    contextText.textContent = "";
+    contextNote.textContent = "";
+    contextFrame.hidden = true;
   }
 
   const choices = getShuffledChoices(question);
