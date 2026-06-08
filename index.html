@@ -380,6 +380,29 @@ h2 {
   white-space: pre-line;
 }
 
+.question-image-frame {
+  margin: 0 0 24px;
+  padding: 10px;
+  background: #f7faf7;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow-soft);
+}
+
+.question-image-frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+
+.question-image-frame figcaption {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
 .choice-list {
   display: grid;
   gap: 11px;
@@ -671,6 +694,10 @@ h2 {
           <p class="question-source" id="question-source"></p>
           <h2 id="question-stem"></h2>
           <p class="question-text" id="question-text"></p>
+          <figure class="question-image-frame" id="question-image-frame" hidden>
+            <img id="question-image" src="" alt="">
+            <figcaption id="question-image-caption"></figcaption>
+          </figure>
           <div class="choice-list" id="choice-list"></div>
         </article>
 
@@ -5913,6 +5940,9 @@ genres.push({
       source: "5-1 相続人の範囲と順位・相続分① 問1",
       stem: "親族関係図における被相続人Aの法定相続人として、最も適切な組合せはどれか。",
       text: "被相続人Aには配偶者B、長男C、長女Dがいる。長男Cの妻はC'、長女Dの夫D'はAの普通養子である。",
+      image: "assets/kinship-5-1.jpg",
+      imageAlt: "5-1の親族関係図。被相続人A、配偶者B、長男C、Cの妻C'、長女D、Dの夫D'の関係を示す。",
+      imageCaption: "原文の親族関係図",
       type: "single",
       answer: "3",
       choices: [
@@ -5945,6 +5975,9 @@ genres.push({
       source: "5-2 相続人の範囲と順位・相続分② 問1",
       stem: "親族関係図における被相続人Aの法定相続人として、最も適切な組合せはどれか。",
       text: "被相続人Aには配偶者Bがいる。長男Cは死亡しており、Cの配偶者Dとの間に孫E・孫Fがいる。孫EはAの普通養子である。",
+      image: "assets/kinship-5-2.jpg",
+      imageAlt: "5-2の親族関係図。被相続人A、配偶者B、死亡した長男C、配偶者D、孫E、孫Fの関係を示す。",
+      imageCaption: "原文の親族関係図",
       type: "single",
       answer: "3",
       choices: [
@@ -6689,6 +6722,20 @@ function renderQuestion() {
   document.querySelector("#question-source").textContent = question.source;
   document.querySelector("#question-stem").textContent = question.stem;
   document.querySelector("#question-text").textContent = question.text;
+  const imageFrame = document.querySelector("#question-image-frame");
+  const image = document.querySelector("#question-image");
+  const imageCaption = document.querySelector("#question-image-caption");
+  if (question.image) {
+    image.src = question.image;
+    image.alt = question.imageAlt ?? "";
+    imageCaption.textContent = question.imageCaption ?? "";
+    imageFrame.hidden = false;
+  } else {
+    image.removeAttribute("src");
+    image.alt = "";
+    imageCaption.textContent = "";
+    imageFrame.hidden = true;
+  }
 
   const choices = getShuffledChoices(question);
   const choiceList = document.querySelector("#choice-list");
