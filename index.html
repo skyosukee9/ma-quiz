@@ -228,6 +228,28 @@ h2 {
   border-radius: 8px;
 }
 
+.elapsed-meter {
+  min-width: 120px;
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+  color: #d9e9df;
+  font-weight: 800;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+}
+
+.elapsed-meter span:first-child {
+  color: #add3c8;
+  font-size: 0.78rem;
+}
+
+.elapsed-meter span:last-child {
+  font-variant-numeric: tabular-nums;
+}
+
 .genre-grid {
   display: grid;
   gap: 16px;
@@ -496,6 +518,12 @@ h2 {
   font-weight: 900;
 }
 
+.result-time {
+  margin: 8px 0 0;
+  color: var(--brand);
+  font-weight: 900;
+}
+
 .score-note {
   margin: 0;
   color: var(--muted);
@@ -698,6 +726,10 @@ h2 {
               <span id="question-counter">1 / 1</span>
               <span id="remaining-counter">残り 0</span>
             </div>
+            <div class="elapsed-meter" aria-live="polite">
+              <span>経過時間</span>
+              <span id="elapsed-time">00:00</span>
+            </div>
           </div>
         </header>
 
@@ -734,6 +766,7 @@ h2 {
           <div>
             <p class="score-line" id="score-line"></p>
             <p class="score-note" id="score-note"></p>
+            <p class="result-time" id="result-time"></p>
           </div>
         </div>
         <div class="wrong-list" id="wrong-list"></div>
@@ -6854,7 +6887,10 @@ const state = {
   currentIndex: 0,
   roundAnswers: [],
   allMisses: [],
-  retryRound: false
+  retryRound: false,
+  startedAt: null,
+  finishedAt: null,
+  timerId: null
 };
 
 const kanaSymbols = ["ア", "イ", "ウ", "エ", "オ", "カ"];
@@ -6862,7 +6898,10 @@ const kanaSymbols = ["ア", "イ", "ウ", "エ", "オ", "カ"];
 document.querySelector("#enter-button").addEventListener("click", () => showScreen("genre"));
 document.querySelector("#retry-button").addEventListener("click", startRetry);
 document.querySelector("#clear-from-result-button").addEventListener("click", showClear);
-document.querySelector("#back-from-result-button").addEventListener("click", () => showScreen("genre"));
+document.querySelector("#back-from-result-button").addEventListener("click", () => {
+  stopTimer();
+  showScreen("genre");
+});
 document.querySelector("#back-to-genre-button").addEventListener("click", () => showScreen("genre"));
 document.querySelector("#quit-quiz-button").addEventListener("click", confirmQuitQuiz);
 document.querySelector("#previous-question-button").addEventListener("click", goToPreviousQuestion);
@@ -6911,6 +6950,7 @@ function startGenre(genreId) {
   state.roundAnswers = [];
   state.allMisses = [];
   state.retryRound = false;
+  startTimer();
   showScreen("quiz");
   renderQuestion();
 }
@@ -6954,6 +6994,7 @@ function startRetry() {
 
 function confirmQuitQuiz() {
   if (window.confirm("回答中ですが本当に戻りますか？")) {
+    stopTimer();
     showScreen("genre");
   }
 }
@@ -7086,6 +7127,11 @@ function showRoundResult() {
   const wrongAnswers = state.roundAnswers.filter((answer) => !answer.correct);
   const percent = Math.round((correctCount / total) * 100);
   const hasWrongAnswers = wrongAnswers.length > 0;
+  if (!hasWrongAnswers) {
+    state.finishedAt = Date.now();
+    stopTimer();
+  }
+  const elapsedLabel = formatElapsedTime(getElapsedMs());
 
   document.querySelector("#result-label").textContent = state.retryRound ? "再出題の結果" : "結果発表";
   document.querySelector("#result-title").textContent = hasWrongAnswers ? "結果" : "全問正解";
@@ -7095,6 +7141,7 @@ function showRoundResult() {
   document.querySelector("#score-note").textContent = hasWrongAnswers
     ? `${wrongAnswers.length}問を再出題します。正解した問題も解説を確認できます。`
     : "全問正解です。解説を確認したらクリア画面へ進んでください。";
+  document.querySelector("#result-time").textContent = `所要時間: ${elapsedLabel}`;
   document.querySelector("#retry-button").hidden = !hasWrongAnswers;
   document.querySelector("#clear-from-result-button").hidden = hasWrongAnswers;
   document.querySelector("#back-from-result-button").hidden = !hasWrongAnswers;
@@ -7106,6 +7153,46 @@ function showRoundResult() {
   });
 
   showScreen("result");
+}
+
+function startTimer() {
+  stopTimer();
+  state.startedAt = Date.now();
+  state.finishedAt = null;
+  updateElapsedTime();
+  state.timerId = window.setInterval(updateElapsedTime, 1000);
+}
+
+function stopTimer() {
+  if (state.timerId) {
+    window.clearInterval(state.timerId);
+    state.timerId = null;
+  }
+}
+
+function getElapsedMs() {
+  if (!state.startedAt) {
+    return 0;
+  }
+
+  return (state.finishedAt ?? Date.now()) - state.startedAt;
+}
+
+function updateElapsedTime() {
+  document.querySelector("#elapsed-time").textContent = formatElapsedTime(getElapsedMs());
+}
+
+function formatElapsedTime(milliseconds) {
+  const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const paddedMinutes = String(minutes).padStart(2, "0");
+  const paddedSeconds = String(seconds).padStart(2, "0");
+
+  return hours > 0
+    ? `${hours}:${paddedMinutes}:${paddedSeconds}`
+    : `${paddedMinutes}:${paddedSeconds}`;
 }
 
 function renderReviewItem(answer) {
@@ -7148,7 +7235,7 @@ function showClear() {
   localStorage.setItem(getClearKey(state.genre), clearStamp);
   renderGenres();
 
-  document.querySelector("#clear-time").textContent = `クリア日時: ${clearStamp}`;
+  document.querySelector("#clear-time").textContent = `クリア日時: ${clearStamp} / 所要時間: ${formatElapsedTime(getElapsedMs())}`;
   document.querySelector("#clear-message").textContent = state.allMisses.length
     ? "間違えた問題をすべて正解にしました。"
     : "初回で全問正解です。";
