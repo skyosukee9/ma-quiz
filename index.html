@@ -55,6 +55,12 @@ button:hover {
   transform: translateY(-1px);
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+}
+
 button:focus-visible {
   outline: 3px solid rgba(49, 95, 159, 0.35);
   outline-offset: 3px;
@@ -195,6 +201,18 @@ h2 {
 
 .quiz-topbar {
   align-items: center;
+}
+
+.quiz-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.previous-question-action {
+  min-width: 132px;
 }
 
 .meter {
@@ -592,6 +610,10 @@ h2 {
     justify-items: start;
   }
 
+  .quiz-controls {
+    justify-content: flex-start;
+  }
+
   .choice-button {
     grid-template-columns: 38px 1fr;
     padding: 12px;
@@ -632,9 +654,12 @@ h2 {
             <p class="kicker" id="quiz-mode">通常出題</p>
             <h1 id="quiz-title">出題中</h1>
           </div>
-          <div class="meter">
-            <span id="question-counter">1 / 1</span>
-            <span id="remaining-counter">残り 0</span>
+          <div class="quiz-controls">
+            <button class="secondary-action previous-question-action" id="previous-question-button" type="button">一つ前へ戻る</button>
+            <div class="meter">
+              <span id="question-counter">1 / 1</span>
+              <span id="remaining-counter">残り 0</span>
+            </div>
           </div>
         </header>
 
@@ -6541,6 +6566,7 @@ document.querySelector("#clear-from-result-button").addEventListener("click", sh
 document.querySelector("#back-from-result-button").addEventListener("click", () => showScreen("genre"));
 document.querySelector("#back-to-genre-button").addEventListener("click", () => showScreen("genre"));
 document.querySelector("#quit-quiz-button").addEventListener("click", confirmQuitQuiz);
+document.querySelector("#previous-question-button").addEventListener("click", goToPreviousQuestion);
 
 renderGenres();
 
@@ -6633,12 +6659,30 @@ function confirmQuitQuiz() {
   }
 }
 
+function goToPreviousQuestion() {
+  if (state.currentIndex === 0) {
+    return;
+  }
+
+  const previousAnswer = state.roundAnswers.pop();
+  if (previousAnswer && !previousAnswer.correct) {
+    const missedIndex = state.allMisses.lastIndexOf(previousAnswer.question);
+    if (missedIndex !== -1) {
+      state.allMisses.splice(missedIndex, 1);
+    }
+  }
+
+  state.currentIndex -= 1;
+  renderQuestion();
+}
+
 function renderQuestion() {
   const question = state.queue[state.currentIndex];
   const total = state.queue.length;
   const answered = state.currentIndex;
 
   document.querySelector("#quiz-mode").textContent = state.retryRound ? "再出題" : "通常出題";
+  document.querySelector("#previous-question-button").disabled = state.currentIndex === 0;
   document.querySelector("#question-counter").textContent = `${state.currentIndex + 1} / ${total}`;
   document.querySelector("#remaining-counter").textContent = `残り ${Math.max(total - answered - 1, 0)}`;
   document.querySelector("#progress-fill").style.width = `${(answered / total) * 100}%`;
