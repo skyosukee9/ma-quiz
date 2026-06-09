@@ -234,6 +234,55 @@ h2 {
   box-shadow: 0 0 0 3px rgba(0, 135, 100, 0.18);
 }
 
+.player-name-field {
+  position: relative;
+  width: min(100%, 420px);
+}
+
+.player-name-field input {
+  width: 100%;
+}
+
+.player-name-suggestions {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  display: grid;
+  gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid rgba(7, 63, 54, 0.2);
+  border-radius: 8px;
+  box-shadow: var(--shadow-soft);
+}
+
+.player-name-suggestions[hidden] {
+  display: none;
+}
+
+.player-name-suggestion {
+  min-height: 40px;
+  padding: 8px 10px;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 800;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.player-name-suggestion:hover,
+.player-name-suggestion:focus {
+  background: #eff8f1;
+  outline: none;
+}
+
 .quiz-topbar {
   align-items: center;
 }
@@ -804,7 +853,10 @@ h2 {
         </header>
         <div class="player-profile">
           <label for="player-name-input">名前</label>
-          <input id="player-name-input" type="text" autocomplete="name" placeholder="受講者名">
+          <div class="player-name-field">
+            <input id="player-name-input" type="text" autocomplete="off" placeholder="受講者名" aria-controls="player-name-suggestions">
+            <div class="player-name-suggestions" id="player-name-suggestions" hidden></div>
+          </div>
         </div>
         <div class="genre-grid" id="genre-list"></div>
       </section>
@@ -7019,11 +7071,25 @@ const progressEndpointUrl = resolveProgressEndpointUrl();
 const progressRequests = [];
 
 const playerNameInput = document.querySelector("#player-name-input");
+const playerNameSuggestions = document.querySelector("#player-name-suggestions");
+let sharedPlayerNames = [];
 state.playerName = localStorage.getItem(playerNameKey) ?? "";
 playerNameInput.value = state.playerName;
 playerNameInput.addEventListener("input", () => {
   state.playerName = playerNameInput.value.trim();
   localStorage.setItem(playerNameKey, state.playerName);
+  renderPlayerNameSuggestions();
+});
+playerNameInput.addEventListener("focus", renderPlayerNameSuggestions);
+playerNameInput.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    hidePlayerNameSuggestions();
+  }
+});
+document.addEventListener("pointerdown", (event) => {
+  if (!event.target.closest(".player-name-field")) {
+    hidePlayerNameSuggestions();
+  }
 });
 
 document.querySelector("#enter-button").addEventListener("click", () => showScreen("genre"));
@@ -7038,6 +7104,7 @@ document.querySelector("#quit-quiz-button").addEventListener("click", confirmQui
 document.querySelector("#previous-question-button").addEventListener("click", goToPreviousQuestion);
 
 renderGenres();
+loadSharedPlayerNames();
 
 function renderGenres() {
   const list = document.querySelector("#genre-list");
@@ -7084,6 +7151,7 @@ function startGenre(genreId) {
 
   state.playerName = playerName;
   localStorage.setItem(playerNameKey, playerName);
+  hidePlayerNameSuggestions();
   state.genre = genre;
   state.queue = buildQuestionQueue(genre);
   state.currentIndex = 0;
@@ -7099,6 +7167,63 @@ function startGenre(genreId) {
 
 function getPlayerName() {
   return playerNameInput.value.trim();
+}
+
+function renderPlayerNameSuggestions() {
+  const query = playerNameInput.value.trim().toLowerCase();
+  const names = sharedPlayerNames
+    .filter((name) => !query || name.toLowerCase().includes(query))
+    .slice(0, 8);
+
+  playerNameSuggestions.innerHTML = "";
+  if (names.length === 0) {
+    hidePlayerNameSuggestions();
+    return;
+  }
+
+  names.forEach((name) => {
+    const button = document.createElement("button");
+    button.className = "player-name-suggestion";
+    button.type = "button";
+    button.textContent = name;
+    button.addEventListener("pointerdown", (event) => event.preventDefault());
+    button.addEventListener("click", () => {
+      playerNameInput.value = name;
+      state.playerName = name;
+      localStorage.setItem(playerNameKey, name);
+      hidePlayerNameSuggestions();
+      playerNameInput.focus();
+    });
+    playerNameSuggestions.append(button);
+  });
+  playerNameSuggestions.hidden = false;
+}
+
+function hidePlayerNameSuggestions() {
+  playerNameSuggestions.hidden = true;
+}
+
+function loadSharedPlayerNames() {
+  if (!progressEndpointUrl) {
+    return;
+  }
+
+  const callbackName = `__maQuizNameCallback${Date.now()}${Math.floor(Math.random() * 100000)}`;
+  const script = document.createElement("script");
+  window[callbackName] = (payload) => {
+    sharedPlayerNames = Array.isArray(payload?.names) ? payload.names : [];
+    if (document.activeElement === playerNameInput) {
+      renderPlayerNameSuggestions();
+    }
+    delete window[callbackName];
+    script.remove();
+  };
+  script.onerror = () => {
+    delete window[callbackName];
+    script.remove();
+  };
+  script.src = `${progressEndpointUrl}?action=names&callback=${callbackName}&_=${Date.now()}`;
+  document.body.append(script);
 }
 
 function buildQuestionQueue(genre) {

@@ -22,13 +22,15 @@ function doPost(e) {
 
 function doGet(e) {
   const data = (e && e.parameter) || {};
+  if (data.action === "names") {
+    return createOutput_({ names: getKnownNames_() }, data.callback);
+  }
+
   if (data.playerName || data.genreTitle) {
     recordReport_(data);
   }
 
-  return ContentService
-    .createTextOutput(JSON.stringify({ ok: true }))
-    .setMimeType(ContentService.MimeType.JSON);
+  return createOutput_({ ok: true }, data.callback);
 }
 
 function recordReport_(data) {
@@ -73,6 +75,34 @@ function calculateProgress_(sheet, data) {
   }
 
   return `${Math.min(100, Math.round((completedTopics.size / totalTopics) * 100))}%`;
+}
+
+function getKnownNames_() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = getOrCreateSheet_(spreadsheet, REPORT_SHEET_NAME);
+  ensureHeaders_(sheet, REPORT_HEADERS);
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) {
+    return [];
+  }
+
+  const values = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  const names = values
+    .map((row) => String(row[0] || "").trim())
+    .filter(Boolean);
+  return [...new Set(names)].sort((left, right) => left.localeCompare(right, "ja"));
+}
+
+function createOutput_(payload, callback) {
+  if (callback && /^[\w.$]+$/.test(callback)) {
+    return ContentService
+      .createTextOutput(`${callback}(${JSON.stringify(payload)});`)
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+
+  return ContentService
+    .createTextOutput(JSON.stringify(payload))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 function getOrCreateSheet_(spreadsheet, name) {
