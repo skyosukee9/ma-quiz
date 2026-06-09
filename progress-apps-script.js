@@ -20,7 +20,8 @@ const LOG_HEADERS = [
   "ブラウザID",
   "結果サマリー",
   "分析レポート",
-  "重点復習タグ"
+  "重点復習タグ",
+  "文章レポート"
 ];
 
 const SUMMARY_HEADERS = [
@@ -79,7 +80,8 @@ function recordProgress_(data) {
     data.browserId || "",
     data.reportSummary || "",
     data.reportAnalysis || "",
-    data.focusTags || ""
+    data.focusTags || "",
+    data.reportText || [data.reportSummary, data.reportAnalysis].filter(Boolean).join("\n")
   ]);
 
   updateSummary_(spreadsheet);
@@ -146,7 +148,7 @@ function updateSummary_(spreadsheet) {
       current.lastAt = recordedAt;
       current.lastPart = row[2] || "";
       current.lastGenre = row[4] || "";
-      current.lastReport = row[17] || row[16] || "";
+      current.lastReport = row[19] || row[17] || row[16] || "";
     }
 
     people.set(name, current);

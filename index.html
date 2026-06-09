@@ -7423,6 +7423,7 @@ function submitProgressResult({ total, correctCount, percent, wrongAnswers, elap
     wrongTags: truncateProgressText(wrongTags.join(" / "), 600),
     reportSummary: truncateProgressText(report.summary, 900),
     reportAnalysis: truncateProgressText(report.analysis, 900),
+    reportText: truncateProgressText(`${report.summary}\n${report.analysis}`, 1600),
     focusTags: truncateProgressText(report.focus, 600),
     browserId: getBrowserId()
   };
@@ -7473,8 +7474,10 @@ function getAnswerText(question, answerId) {
     return answerId === "true" ? "○ 正しい・適切である" : "× 誤り・不適切である";
   }
 
-  const choice = question.choices.find((item) => item.id === answerId);
-  return choice ? `(${choice.id}) ${choice.text}` : answerId;
+  const choiceIndex = question.choices.findIndex((item) => item.id === answerId);
+  const choice = question.choices[choiceIndex];
+  const symbol = choice?.symbol ?? kanaSymbols[choiceIndex];
+  return choice ? `${symbol}. ${choice.text}` : answerId;
 }
 
 function showClear() {
