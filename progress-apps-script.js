@@ -1,198 +1,131 @@
-const REPORT_SHEET_NAME = "完答レポート";
-const PERSONAL_TEMPLATE_SHEET_NAME = "接続テスト_人物別";
-const MIN_FORMAT_ROWS = 100;
-
-const REPORT_HEADERS = [
-  "名前",
-  "回答日時",
-  "所要時間",
-  "大問名",
-  "正答率",
-  "全体進捗率",
-  "結果サマリー",
-  "分析レポート"
-];
+var REPORT_SHEET_NAME = "完答レポート";
+var PERSONAL_TEMPLATE_SHEET_NAME = "接続テスト_人物別";
+var MIN_FORMAT_ROWS = 100;
+var REPORT_HEADERS = ["名前", "回答日時", "所要時間", "大問名", "正答率", "全体進捗率", "結果サマリー", "分析レポート"];
 
 function doPost(e) {
-  const data = JSON.parse((e.postData && e.postData.contents) || "{}");
+  var data = JSON.parse((e.postData && e.postData.contents) || "{}");
   recordReport_(data);
-
-  return ContentService
-    .createTextOutput(JSON.stringify({ ok: true }))
-    .setMimeType(ContentService.MimeType.JSON);
+  return output_({ ok: true });
 }
 
 function doGet(e) {
-  const data = (e && e.parameter) || {};
-  if (data.action === "names") {
-    return createOutput_({ names: getKnownNames_() }, data.callback);
-  }
-
-  if (data.playerName || data.genreTitle) {
-    recordReport_(data);
-  }
-
-  return createOutput_({ ok: true }, data.callback);
+  var data = (e && e.parameter) || {};
+  if (data.action === "names") return output_({ names: getKnownNames_() }, data.callback);
+  if (data.playerName || data.genreTitle) recordReport_(data);
+  return output_({ ok: true }, data.callback);
 }
 
 function recordReport_(data) {
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = getOrCreateSheet_(spreadsheet, REPORT_SHEET_NAME);
-  ensureHeaders_(sheet, REPORT_HEADERS);
-  const progress = calculateProgress_(sheet, data);
-  const row = [
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = getOrCreateSheet_(ss, REPORT_SHEET_NAME);
+  ensureHeaders_(sheet);
+  var row = [
     data.playerName || "",
     new Date(),
     data.elapsedLabel || "",
     data.genreTitle || "",
     formatPercent_(data.percent),
-    progress,
+    calculateProgress_(sheet, data),
     data.reportSummary || "",
     data.reportAnalysis || ""
   ];
-
   sheet.appendRow(row);
-  applyReportSheetLayout_(spreadsheet, sheet);
-  appendPersonalReport_(spreadsheet, data.playerName, row);
+  applyLayout_(ss, sheet);
+  appendPersonalReport_(ss, data.playerName, row);
 }
 
 function calculateProgress_(sheet, data) {
-  const name = String(data.playerName || "").trim();
-  const genreTitle = String(data.genreTitle || "").trim();
-  const totalTopics = Number(data.totalTopics || 0);
-  if (!name || !genreTitle || !Number.isFinite(totalTopics) || totalTopics <= 0) {
-    return "";
-  }
-
-  const completedTopics = new Set([genreTitle]);
-  const lastRow = sheet.getLastRow();
+  var name = String(data.playerName || "").trim();
+  var genre = String(data.genreTitle || "").trim();
+  var total = Number(data.totalTopics || 0);
+  if (!name || !genre || !isFinite(total) || total <= 0) return "";
+  var done = {};
+  done[genre] = true;
+  var lastRow = sheet.getLastRow();
   if (lastRow > 1) {
-    const values = sheet.getRange(2, 1, lastRow - 1, REPORT_HEADERS.length).getValues();
-    values.forEach((row) => {
-      const rowName = String(row[0] || "").trim();
-      const rowGenreTitle = String(row[3] || "").trim();
-      if (rowName === name && rowGenreTitle) {
-        completedTopics.add(rowGenreTitle);
+    var values = sheet.getRange(2, 1, lastRow - 1, REPORT_HEADERS.length).getValues();
+    for (var i = 0; i < values.length; i++) {
+      if (String(values[i][0] || "").trim() === name && values[i][3]) {
+        done[String(values[i][3]).trim()] = true;
       }
-    });
+    }
   }
-
-  return `${Math.min(100, Math.round((completedTopics.size / totalTopics) * 100))}%`;
+  return Math.min(100, Math.round((Object.keys(done).length / total) * 100)) + "%";
 }
 
 function getKnownNames_() {
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = getOrCreateSheet_(spreadsheet, REPORT_SHEET_NAME);
-  ensureHeaders_(sheet, REPORT_HEADERS);
-  const lastRow = sheet.getLastRow();
-  if (lastRow <= 1) {
-    return [];
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = getOrCreateSheet_(ss, REPORT_SHEET_NAME);
+  ensureHeaders_(sheet);
+  var lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return [];
+  var values = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  var seen = {};
+  var names = [];
+  for (var i = 0; i < values.length; i++) {
+    var name = String(values[i][0] || "").trim();
+    if (name && !seen[name]) {
+      seen[name] = true;
+      names.push(name);
+    }
   }
-
-  const values = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
-  const names = values
-    .map((row) => String(row[0] || "").trim())
-    .filter(Boolean);
-  return [...new Set(names)].sort((left, right) => left.localeCompare(right, "ja"));
+  return names.sort(function(a, b) { return a.localeCompare(b, "ja"); });
 }
 
-function createOutput_(payload, callback) {
-  if (callback && /^[\w.$]+$/.test(callback)) {
-    return ContentService
-      .createTextOutput(`${callback}(${JSON.stringify(payload)});`)
-      .setMimeType(ContentService.MimeType.JAVASCRIPT);
-  }
-
-  return ContentService
-    .createTextOutput(JSON.stringify(payload))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-function getOrCreateSheet_(spreadsheet, name) {
-  return spreadsheet.getSheetByName(name) || spreadsheet.insertSheet(name);
-}
-
-function appendPersonalReport_(spreadsheet, playerName, row) {
-  const sheetName = getPersonalSheetName_(playerName);
-  if (!sheetName) {
-    return;
-  }
-
-  const sheet = getOrCreatePersonalSheet_(spreadsheet, sheetName);
-  ensureHeaders_(sheet, REPORT_HEADERS);
+function appendPersonalReport_(ss, playerName, row) {
+  var sheetName = getPersonalSheetName_(playerName);
+  if (!sheetName) return;
+  var sheet = ss.getSheetByName(sheetName) || ss.insertSheet(sheetName);
+  ensureHeaders_(sheet);
   sheet.appendRow(row);
-  applyReportSheetLayout_(spreadsheet, sheet);
+  applyLayout_(ss, sheet);
 }
 
-function getOrCreatePersonalSheet_(spreadsheet, sheetName) {
-  const existing = spreadsheet.getSheetByName(sheetName);
-  if (existing) {
-    return existing;
-  }
-
-  const sheet = spreadsheet.insertSheet(sheetName);
-  applyPersonalSheetTemplate_(spreadsheet, sheet);
-  return sheet;
-}
-
-function applyPersonalSheetTemplate_(spreadsheet, sheet) {
-  applyReportSheetLayout_(spreadsheet, sheet);
-}
-
-function applyReportSheetLayout_(spreadsheet, sheet) {
-  const template = spreadsheet.getSheetByName(PERSONAL_TEMPLATE_SHEET_NAME);
-  const columnCount = Math.min(REPORT_HEADERS.length, sheet.getMaxColumns());
-  const rowCount = Math.min(Math.max(sheet.getLastRow(), MIN_FORMAT_ROWS), sheet.getMaxRows());
-
+function applyLayout_(ss, sheet) {
+  var template = ss.getSheetByName(PERSONAL_TEMPLATE_SHEET_NAME);
+  var cols = Math.min(REPORT_HEADERS.length, sheet.getMaxColumns());
+  var rows = Math.min(Math.max(sheet.getLastRow(), MIN_FORMAT_ROWS), sheet.getMaxRows());
   if (template && template.getSheetId() !== sheet.getSheetId()) {
-    const templateColumnCount = Math.min(columnCount, template.getMaxColumns());
-    const templateRowCount = Math.min(rowCount, template.getMaxRows());
-    for (let column = 1; column <= templateColumnCount; column += 1) {
-      sheet.setColumnWidth(column, template.getColumnWidth(column));
-    }
-
-    for (let row = 1; row <= templateRowCount; row += 1) {
-      sheet.setRowHeight(row, template.getRowHeight(row));
-    }
-
-    template
-      .getRange(1, 1, templateRowCount, templateColumnCount)
-      .copyTo(sheet.getRange(1, 1, templateRowCount, templateColumnCount), { formatOnly: true });
-
+    var tCols = Math.min(cols, template.getMaxColumns());
+    var tRows = Math.min(rows, template.getMaxRows());
+    for (var c = 1; c <= tCols; c++) sheet.setColumnWidth(c, template.getColumnWidth(c));
+    for (var r = 1; r <= tRows; r++) sheet.setRowHeight(r, template.getRowHeight(r));
+    template.getRange(1, 1, tRows, tCols).copyTo(sheet.getRange(1, 1, tRows, tCols), { formatOnly: true });
     sheet.setFrozenRows(template.getFrozenRows());
     sheet.setFrozenColumns(template.getFrozenColumns());
   }
-
-  const range = sheet.getRange(1, 1, rowCount, columnCount);
-  range.setWrap(true);
-  range.setVerticalAlignment("middle");
+  sheet.getRange(1, 1, rows, cols).setWrap(true).setVerticalAlignment("middle");
   sheet.autoResizeRows(1, Math.max(sheet.getLastRow(), 1));
 }
 
 function getPersonalSheetName_(playerName) {
-  const name = String(playerName || "").trim();
-  if (!name) {
-    return "";
-  }
-
-  const sanitized = name.replace(/[\\/?*[\]:]/g, " ").replace(/\s+/g, " ").trim();
-  return sanitized.slice(0, 90) || "未設定";
+  var name = String(playerName || "").trim();
+  if (!name) return "";
+  return name.replace(/[\\/?*[\]:]/g, " ").replace(/\s+/g, " ").trim().slice(0, 90) || "未設定";
 }
 
-function ensureHeaders_(sheet, headers) {
-  const maxColumns = Math.max(sheet.getMaxColumns(), headers.length);
-  if (sheet.getLastRow() === 0) {
-    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-    sheet.setFrozenRows(1);
-    return;
-  }
+function getOrCreateSheet_(ss, name) {
+  return ss.getSheetByName(name) || ss.insertSheet(name);
+}
 
+function ensureHeaders_(sheet) {
+  var maxColumns = Math.max(sheet.getMaxColumns(), REPORT_HEADERS.length);
   sheet.getRange(1, 1, 1, maxColumns).clearContent();
-  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet.getRange(1, 1, 1, REPORT_HEADERS.length).setValues([REPORT_HEADERS]);
   sheet.setFrozenRows(1);
 }
 
 function formatPercent_(value) {
-  const number = Number(value || 0);
-  return Number.isFinite(number) ? `${Math.round(number)}%` : "";
+  var number = Number(value || 0);
+  return isFinite(number) ? Math.round(number) + "%" : "";
+}
+
+function output_(payload, callback) {
+  if (callback && /^[\w.$]+$/.test(callback)) {
+    return ContentService.createTextOutput(callback + "(" + JSON.stringify(payload) + ");")
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService.createTextOutput(JSON.stringify(payload))
+    .setMimeType(ContentService.MimeType.JSON);
 }
