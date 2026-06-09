@@ -867,6 +867,7 @@ h2 {
         <article class="result-report" id="result-report">
           <h2>今回のレポート</h2>
           <p id="report-summary"></p>
+          <p id="report-analysis"></p>
           <div class="report-grid">
             <div class="report-metric">
               <span>重点復習</span>
@@ -7296,6 +7297,7 @@ function showRoundResult() {
   document.querySelector("#clear-from-result-button").hidden = hasWrongAnswers;
   document.querySelector("#back-from-result-button").hidden = !hasWrongAnswers;
   document.querySelector("#report-summary").textContent = report.summary;
+  document.querySelector("#report-analysis").textContent = report.analysis;
   document.querySelector("#report-focus").textContent = report.focus;
   document.querySelector("#report-pace").textContent = report.pace;
   document.querySelector("#report-next-step").textContent = report.nextStep;
@@ -7371,19 +7373,21 @@ function buildResultReport({ total, correctCount, percent, wrongAnswers, elapsed
   const pace = secondsPerQuestion > 0
     ? `1問あたり約${secondsPerQuestion}秒`
     : "回答時間なし";
-  const accuracyComment = percent >= 90
-    ? "定着度は高めです。"
-    : percent >= 70
-      ? "基本は取れていますが、取りこぼしがあります。"
-      : "優先して復習したい範囲です。";
   const nextStep = cleared
     ? "解説確認後、次の範囲へ進む"
     : "誤答の解説確認後、再出題へ進む";
   const roundLabel = state.retryRound ? "再出題" : "初回";
-  const summary = `${roundLabel}結果: ${state.genre?.title ?? ""}は${correctCount}/${total}問正解、正答率${percent}%です。${wrongAnswers.length}問の誤答がありました。${accuracyComment}`;
+  const genreTitle = state.genre?.title ?? "";
+  const wrongSources = wrongAnswers.slice(0, 5).map((answer) => answer.question.source).join("、");
+  const accuracyComment = percent >= 90
+    ? "理解はかなり安定しています。"
+    : percent >= 70
+      ? "主要論点は押さえられていますが、細かい判断で取りこぼしがあります。"
+      : "この範囲は優先的に復習したい状態です。";
+  const summary = `${roundLabel}の${genreTitle}は、${total}問中${correctCount}問正解で正答率は${percent}%でした。${accuracyComment}`;
   const analysis = cleared
-    ? `${state.genre?.title ?? ""}は全問正解です。回答ペースは${pace}でした。`
-    : `${state.genre?.title ?? ""}の重点復習は${focus}です。回答ペースは${pace}でした。`;
+    ? `今回は誤答がありません。${pace}で解けているため、解説で根拠を確認できれば次の範囲へ進んでよい結果です。`
+    : `誤答は${wrongAnswers.length}問で、特に${focus}を復習すると効果的です。該当問題は${wrongSources}です。${pace}で進められているので、まず誤答の解説を読み、判断根拠を確認してから再出題に進むのがよさそうです。`;
 
   return {
     summary,
