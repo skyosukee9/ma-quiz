@@ -1,5 +1,6 @@
 const REPORT_SHEET_NAME = "完答レポート";
 const PERSONAL_TEMPLATE_SHEET_NAME = "接続テスト_人物別";
+const MIN_FORMAT_ROWS = 100;
 
 const REPORT_HEADERS = [
   "名前",
@@ -51,7 +52,7 @@ function recordReport_(data) {
   ];
 
   sheet.appendRow(row);
-  sheet.autoResizeColumns(1, REPORT_HEADERS.length);
+  applyReportSheetLayout_(spreadsheet, sheet);
   appendPersonalReport_(spreadsheet, data.playerName, row);
 }
 
@@ -120,6 +121,7 @@ function appendPersonalReport_(spreadsheet, playerName, row) {
   const sheet = getOrCreatePersonalSheet_(spreadsheet, sheetName);
   ensureHeaders_(sheet, REPORT_HEADERS);
   sheet.appendRow(row);
+  applyReportSheetLayout_(spreadsheet, sheet);
 }
 
 function getOrCreatePersonalSheet_(spreadsheet, sheetName) {
@@ -134,28 +136,37 @@ function getOrCreatePersonalSheet_(spreadsheet, sheetName) {
 }
 
 function applyPersonalSheetTemplate_(spreadsheet, sheet) {
+  applyReportSheetLayout_(spreadsheet, sheet);
+}
+
+function applyReportSheetLayout_(spreadsheet, sheet) {
   const template = spreadsheet.getSheetByName(PERSONAL_TEMPLATE_SHEET_NAME);
-  if (!template || template.getSheetId() === sheet.getSheetId()) {
-    return;
+  const columnCount = Math.min(REPORT_HEADERS.length, sheet.getMaxColumns());
+  const rowCount = Math.min(Math.max(sheet.getLastRow(), MIN_FORMAT_ROWS), sheet.getMaxRows());
+
+  if (template && template.getSheetId() !== sheet.getSheetId()) {
+    const templateColumnCount = Math.min(columnCount, template.getMaxColumns());
+    const templateRowCount = Math.min(rowCount, template.getMaxRows());
+    for (let column = 1; column <= templateColumnCount; column += 1) {
+      sheet.setColumnWidth(column, template.getColumnWidth(column));
+    }
+
+    for (let row = 1; row <= templateRowCount; row += 1) {
+      sheet.setRowHeight(row, template.getRowHeight(row));
+    }
+
+    template
+      .getRange(1, 1, templateRowCount, templateColumnCount)
+      .copyTo(sheet.getRange(1, 1, templateRowCount, templateColumnCount), { formatOnly: true });
+
+    sheet.setFrozenRows(template.getFrozenRows());
+    sheet.setFrozenColumns(template.getFrozenColumns());
   }
 
-  const columnCount = Math.min(REPORT_HEADERS.length, template.getMaxColumns(), sheet.getMaxColumns());
-  const rowCount = Math.min(Math.max(template.getLastRow(), 20), template.getMaxRows(), sheet.getMaxRows());
-
-  for (let column = 1; column <= columnCount; column += 1) {
-    sheet.setColumnWidth(column, template.getColumnWidth(column));
-  }
-
-  for (let row = 1; row <= rowCount; row += 1) {
-    sheet.setRowHeight(row, template.getRowHeight(row));
-  }
-
-  template
-    .getRange(1, 1, rowCount, columnCount)
-    .copyTo(sheet.getRange(1, 1, rowCount, columnCount), { formatOnly: true });
-
-  sheet.setFrozenRows(template.getFrozenRows());
-  sheet.setFrozenColumns(template.getFrozenColumns());
+  const range = sheet.getRange(1, 1, rowCount, columnCount);
+  range.setWrap(true);
+  range.setVerticalAlignment("middle");
+  sheet.autoResizeRows(1, Math.max(sheet.getLastRow(), 1));
 }
 
 function getPersonalSheetName_(playerName) {
