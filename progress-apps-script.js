@@ -38,8 +38,7 @@ function recordReport_(data) {
   const sheet = getOrCreateSheet_(spreadsheet, REPORT_SHEET_NAME);
   ensureHeaders_(sheet, REPORT_HEADERS);
   const progress = calculateProgress_(sheet, data);
-
-  sheet.appendRow([
+  const row = [
     data.playerName || "",
     new Date(),
     data.elapsedLabel || "",
@@ -48,9 +47,11 @@ function recordReport_(data) {
     progress,
     data.reportSummary || "",
     data.reportAnalysis || ""
-  ]);
+  ];
 
+  sheet.appendRow(row);
   sheet.autoResizeColumns(1, REPORT_HEADERS.length);
+  appendPersonalReport_(spreadsheet, data.playerName, row);
 }
 
 function calculateProgress_(sheet, data) {
@@ -107,6 +108,28 @@ function createOutput_(payload, callback) {
 
 function getOrCreateSheet_(spreadsheet, name) {
   return spreadsheet.getSheetByName(name) || spreadsheet.insertSheet(name);
+}
+
+function appendPersonalReport_(spreadsheet, playerName, row) {
+  const sheetName = getPersonalSheetName_(playerName);
+  if (!sheetName) {
+    return;
+  }
+
+  const sheet = getOrCreateSheet_(spreadsheet, sheetName);
+  ensureHeaders_(sheet, REPORT_HEADERS);
+  sheet.appendRow(row);
+  sheet.autoResizeColumns(1, REPORT_HEADERS.length);
+}
+
+function getPersonalSheetName_(playerName) {
+  const name = String(playerName || "").trim();
+  if (!name) {
+    return "";
+  }
+
+  const sanitized = name.replace(/[\\/?*[\]:]/g, " ").replace(/\s+/g, " ").trim();
+  return sanitized.slice(0, 90) || "未設定";
 }
 
 function ensureHeaders_(sheet, headers) {
