@@ -6,6 +6,7 @@ const REPORT_HEADERS = [
   "所要時間",
   "大問名",
   "正答率",
+  "全体進捗率",
   "結果サマリー",
   "分析レポート"
 ];
@@ -34,6 +35,7 @@ function recordReport_(data) {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = getOrCreateSheet_(spreadsheet, REPORT_SHEET_NAME);
   ensureHeaders_(sheet, REPORT_HEADERS);
+  const progress = calculateProgress_(sheet, data);
 
   sheet.appendRow([
     data.playerName || "",
@@ -41,11 +43,36 @@ function recordReport_(data) {
     data.elapsedLabel || "",
     data.genreTitle || "",
     formatPercent_(data.percent),
+    progress,
     data.reportSummary || "",
     data.reportAnalysis || ""
   ]);
 
   sheet.autoResizeColumns(1, REPORT_HEADERS.length);
+}
+
+function calculateProgress_(sheet, data) {
+  const name = String(data.playerName || "").trim();
+  const genreTitle = String(data.genreTitle || "").trim();
+  const totalTopics = Number(data.totalTopics || 0);
+  if (!name || !genreTitle || !Number.isFinite(totalTopics) || totalTopics <= 0) {
+    return "";
+  }
+
+  const completedTopics = new Set([genreTitle]);
+  const lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    const values = sheet.getRange(2, 1, lastRow - 1, REPORT_HEADERS.length).getValues();
+    values.forEach((row) => {
+      const rowName = String(row[0] || "").trim();
+      const rowGenreTitle = String(row[3] || "").trim();
+      if (rowName === name && rowGenreTitle) {
+        completedTopics.add(rowGenreTitle);
+      }
+    });
+  }
+
+  return `${Math.min(100, Math.round((completedTopics.size / totalTopics) * 100))}%`;
 }
 
 function getOrCreateSheet_(spreadsheet, name) {

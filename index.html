@@ -7449,6 +7449,7 @@ function submitProgressResult({ elapsedLabel, report }) {
     genreTitle: state.genre?.title ?? "",
     elapsedLabel,
     percent: report.percent,
+    totalTopics: getTrackedGenreCount(),
     reportSummary: truncateProgressText(report.summary, 900),
     reportAnalysis: truncateProgressText(report.analysis, 1600)
   };
@@ -7467,6 +7468,10 @@ function submitProgressResult({ elapsedLabel, report }) {
     }
   };
   image.src = `${progressEndpointUrl}?${params.toString()}`;
+}
+
+function getTrackedGenreCount() {
+  return genres.filter((genre) => !genre.id.startsWith("all-")).length;
 }
 
 function truncateProgressText(text, maxLength) {
