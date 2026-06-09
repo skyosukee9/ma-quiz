@@ -7000,6 +7000,8 @@ const state = {
   queue: [],
   currentIndex: 0,
   roundAnswers: [],
+  sessionAnswers: [],
+  initialResult: null,
   allMisses: [],
   retryRound: false,
   startedAt: null,
@@ -7086,6 +7088,8 @@ function startGenre(genreId) {
   state.queue = buildQuestionQueue(genre);
   state.currentIndex = 0;
   state.roundAnswers = [];
+  state.sessionAnswers = [];
+  state.initialResult = null;
   state.allMisses = [];
   state.retryRound = false;
   startTimer();
@@ -7147,6 +7151,7 @@ function goToPreviousQuestion() {
   }
 
   const previousAnswer = state.roundAnswers.pop();
+  state.sessionAnswers.pop();
   if (previousAnswer && !previousAnswer.correct) {
     const missedIndex = state.allMisses.lastIndexOf(previousAnswer.question);
     if (missedIndex !== -1) {
@@ -7239,11 +7244,13 @@ function answerQuestion(question, selectedId) {
     ? arraysEqual([...selectedId].sort(), [...question.answer].sort())
     : selectedId === question.answer;
 
-  state.roundAnswers.push({
+  const answer = {
     question,
     selectedId,
     correct
-  });
+  };
+  state.roundAnswers.push(answer);
+  state.sessionAnswers.push(answer);
 
   if (!correct) {
     state.allMisses.push(question);
@@ -7269,20 +7276,23 @@ function showRoundResult() {
   const wrongAnswers = state.roundAnswers.filter((answer) => !answer.correct);
   const percent = Math.round((correctCount / total) * 100);
   const hasWrongAnswers = wrongAnswers.length > 0;
+  if (!state.retryRound && !state.initialResult) {
+    state.initialResult = {
+      total,
+      correctCount,
+      percent,
+      wrongAnswers: [...wrongAnswers]
+    };
+  }
   if (!hasWrongAnswers) {
     state.finishedAt = Date.now();
     stopTimer();
   }
   const elapsedMs = getElapsedMs();
   const elapsedLabel = formatElapsedTime(elapsedMs);
-  const report = buildResultReport({
-    total,
-    correctCount,
-    percent,
-    wrongAnswers,
-    elapsedMs,
-    cleared: !hasWrongAnswers
-  });
+  const report = hasWrongAnswers
+    ? buildRoundReport({ total, correctCount, percent, wrongAnswers, elapsedMs })
+    : buildCompletionReport({ elapsedMs });
 
   document.querySelector("#result-label").textContent = state.retryRound ? "再出題の結果" : "結果発表";
   document.querySelector("#result-title").textContent = hasWrongAnswers ? "結果" : "全問正解";
@@ -7308,16 +7318,9 @@ function showRoundResult() {
     wrongList.append(renderReviewItem(answer));
   });
 
-  submitProgressResult({
-    total,
-    correctCount,
-    percent,
-    wrongAnswers,
-    elapsedMs,
-    elapsedLabel,
-    cleared: !hasWrongAnswers,
-    report
-  });
+  if (!hasWrongAnswers) {
+    submitProgressResult({ elapsedLabel, report });
+  }
 
   showScreen("result");
 }
@@ -7362,7 +7365,7 @@ function formatElapsedTime(milliseconds) {
     : `${paddedMinutes}:${paddedSeconds}`;
 }
 
-function buildResultReport({ total, correctCount, percent, wrongAnswers, elapsedMs, cleared }) {
+function buildRoundReport({ total, correctCount, percent, wrongAnswers, elapsedMs }) {
   const elapsedSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
   const secondsPerQuestion = total ? Math.round(elapsedSeconds / total) : 0;
   const tagCounts = countTags(wrongAnswers.map((answer) => answer.question));
@@ -7373,9 +7376,7 @@ function buildResultReport({ total, correctCount, percent, wrongAnswers, elapsed
   const pace = secondsPerQuestion > 0
     ? `1問あたり約${secondsPerQuestion}秒`
     : "回答時間なし";
-  const nextStep = cleared
-    ? "解説確認後、次の範囲へ進む"
-    : "誤答の解説確認後、再出題へ進む";
+  const nextStep = "誤答の解説確認後、再出題へ進む";
   const roundLabel = state.retryRound ? "再出題" : "初回";
   const genreTitle = state.genre?.title ?? "";
   const wrongSources = wrongAnswers.slice(0, 5).map((answer) => answer.question.source).join("、");
@@ -7385,9 +7386,7 @@ function buildResultReport({ total, correctCount, percent, wrongAnswers, elapsed
       ? "主要論点は押さえられていますが、細かい判断で取りこぼしがあります。"
       : "この範囲は優先的に復習したい状態です。";
   const summary = `${roundLabel}の${genreTitle}は、${total}問中${correctCount}問正解で正答率は${percent}%でした。${accuracyComment}`;
-  const analysis = cleared
-    ? `今回は誤答がありません。${pace}で解けているため、解説で根拠を確認できれば次の範囲へ進んでよい結果です。`
-    : `誤答は${wrongAnswers.length}問で、特に${focus}を復習すると効果的です。該当問題は${wrongSources}です。${pace}で進められているので、まず誤答の解説を読み、判断根拠を確認してから再出題に進むのがよさそうです。`;
+  const analysis = `誤答は${wrongAnswers.length}問で、特に${focus}を復習すると効果的です。該当問題は${wrongSources}です。${pace}で進められているので、まず誤答の解説を読み、判断根拠を確認してから再出題に進むのがよさそうです。`;
 
   return {
     summary,
@@ -7398,34 +7397,60 @@ function buildResultReport({ total, correctCount, percent, wrongAnswers, elapsed
   };
 }
 
-function submitProgressResult({ total, correctCount, percent, wrongAnswers, elapsedMs, elapsedLabel, cleared, report }) {
+function buildCompletionReport({ elapsedMs }) {
+  const initialResult = state.initialResult ?? {
+    total: state.roundAnswers.length,
+    correctCount: state.roundAnswers.filter((answer) => answer.correct).length,
+    percent: 100,
+    wrongAnswers: []
+  };
+  const genreTitle = state.genre?.title ?? "";
+  const elapsedSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
+  const secondsPerOriginalQuestion = initialResult.total
+    ? Math.round(elapsedSeconds / initialResult.total)
+    : 0;
+  const missedQuestions = state.allMisses;
+  const uniqueMissedSources = [...new Set(missedQuestions.map((question) => question.source))];
+  const tagCounts = countTags(missedQuestions);
+  const topTags = tagCounts.slice(0, 3);
+  const focus = topTags.length
+    ? topTags.map(([tag, count]) => `${tag} ${count}回`).join("、")
+    : "弱点タグなし";
+  const pace = secondsPerOriginalQuestion > 0
+    ? `1問あたり約${secondsPerOriginalQuestion}秒`
+    : "回答時間なし";
+  const nextStep = "次の範囲へ進む";
+  const reviewTargets = uniqueMissedSources.length
+    ? uniqueMissedSources.slice(0, 6).join("、")
+    : "なし";
+  const summary = `${genreTitle}を完答しました。初回は${initialResult.total}問中${initialResult.correctCount}問正解で、初回正答率は${initialResult.percent}%でした。完答までの所要時間は${formatElapsedTime(elapsedMs)}です。`;
+  const analysis = uniqueMissedSources.length
+    ? `完答までの過程では${uniqueMissedSources.length}問を復習しました。特に${focus}が復習ポイントです。対象は${reviewTargets}です。完答までに合計${state.sessionAnswers.length}回回答しており、${pace}のペースでした。次回はこのタグを先に確認してから同じ範囲を解くと、取りこぼしを減らせます。`
+    : `初回から全問正解です。合計${state.sessionAnswers.length}回の回答で完答しており、${pace}のペースでした。理解は安定しているため、解説で根拠だけ確認して次の範囲へ進んでよい結果です。`;
+
+  return {
+    summary,
+    analysis,
+    focus,
+    pace,
+    nextStep,
+    percent: initialResult.percent
+  };
+}
+
+function submitProgressResult({ elapsedLabel, report }) {
   if (!progressEndpointUrl) {
     return;
   }
 
-  const wrongQuestions = wrongAnswers.map((answer) => answer.question.source);
-  const wrongTags = [...new Set(wrongAnswers.flatMap((answer) => answer.question.tags ?? []))];
   const payload = {
     submittedAt: new Date().toISOString(),
     playerName: state.playerName,
-    part: state.genre?.part ?? "",
-    genreId: state.genre?.id ?? "",
     genreTitle: state.genre?.title ?? "",
-    mode: state.retryRound ? "再出題" : "通常出題",
-    total,
-    correctCount,
-    percent,
-    elapsedSeconds: Math.floor(elapsedMs / 1000),
     elapsedLabel,
-    cleared,
-    wrongCount: wrongAnswers.length,
-    wrongQuestions: truncateProgressText(wrongQuestions.join(" / "), 1400),
-    wrongTags: truncateProgressText(wrongTags.join(" / "), 600),
+    percent: report.percent,
     reportSummary: truncateProgressText(report.summary, 900),
-    reportAnalysis: truncateProgressText(report.analysis, 900),
-    reportText: truncateProgressText(`${report.summary}\n${report.analysis}`, 1600),
-    focusTags: truncateProgressText(report.focus, 600),
-    browserId: getBrowserId()
+    reportAnalysis: truncateProgressText(report.analysis, 1600)
   };
 
   const params = new URLSearchParams();
