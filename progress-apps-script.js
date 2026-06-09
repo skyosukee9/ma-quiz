@@ -17,7 +17,10 @@ const LOG_HEADERS = [
   "間違えた問題数",
   "間違えた問題",
   "間違えたタグ",
-  "ブラウザID"
+  "ブラウザID",
+  "結果サマリー",
+  "分析レポート",
+  "重点復習タグ"
 ];
 
 const SUMMARY_HEADERS = [
@@ -28,7 +31,8 @@ const SUMMARY_HEADERS = [
   "平均回答時間",
   "最終受験日時",
   "最終パート",
-  "最終大問"
+  "最終大問",
+  "最新レポート"
 ];
 
 function doPost(e) {
@@ -72,7 +76,10 @@ function recordProgress_(data) {
     toNumber_(data.wrongCount),
     data.wrongQuestions || "",
     data.wrongTags || "",
-    data.browserId || ""
+    data.browserId || "",
+    data.reportSummary || "",
+    data.reportAnalysis || "",
+    data.focusTags || ""
   ]);
 
   updateSummary_(spreadsheet);
@@ -125,7 +132,8 @@ function updateSummary_(spreadsheet) {
       secondsTotal: 0,
       lastAt: null,
       lastPart: "",
-      lastGenre: ""
+      lastGenre: "",
+      lastReport: ""
     };
 
     const recordedAt = row[0] instanceof Date ? row[0] : new Date(row[0]);
@@ -138,6 +146,7 @@ function updateSummary_(spreadsheet) {
       current.lastAt = recordedAt;
       current.lastPart = row[2] || "";
       current.lastGenre = row[4] || "";
+      current.lastReport = row[17] || row[16] || "";
     }
 
     people.set(name, current);
@@ -153,7 +162,8 @@ function updateSummary_(spreadsheet) {
       formatSeconds_(Math.round(value.secondsTotal / value.attempts)),
       value.lastAt,
       value.lastPart,
-      value.lastGenre
+      value.lastGenre,
+      value.lastReport
     ]);
 
   if (summarySheet.getLastRow() > 1) {
