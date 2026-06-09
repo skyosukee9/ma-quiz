@@ -1,4 +1,5 @@
 const REPORT_SHEET_NAME = "完答レポート";
+const PERSONAL_TEMPLATE_SHEET_NAME = "接続テスト_人物別";
 
 const REPORT_HEADERS = [
   "名前",
@@ -116,10 +117,45 @@ function appendPersonalReport_(spreadsheet, playerName, row) {
     return;
   }
 
-  const sheet = getOrCreateSheet_(spreadsheet, sheetName);
+  const sheet = getOrCreatePersonalSheet_(spreadsheet, sheetName);
   ensureHeaders_(sheet, REPORT_HEADERS);
   sheet.appendRow(row);
-  sheet.autoResizeColumns(1, REPORT_HEADERS.length);
+}
+
+function getOrCreatePersonalSheet_(spreadsheet, sheetName) {
+  const existing = spreadsheet.getSheetByName(sheetName);
+  if (existing) {
+    return existing;
+  }
+
+  const sheet = spreadsheet.insertSheet(sheetName);
+  applyPersonalSheetTemplate_(spreadsheet, sheet);
+  return sheet;
+}
+
+function applyPersonalSheetTemplate_(spreadsheet, sheet) {
+  const template = spreadsheet.getSheetByName(PERSONAL_TEMPLATE_SHEET_NAME);
+  if (!template || template.getSheetId() === sheet.getSheetId()) {
+    return;
+  }
+
+  const columnCount = Math.min(REPORT_HEADERS.length, template.getMaxColumns(), sheet.getMaxColumns());
+  const rowCount = Math.min(Math.max(template.getLastRow(), 20), template.getMaxRows(), sheet.getMaxRows());
+
+  for (let column = 1; column <= columnCount; column += 1) {
+    sheet.setColumnWidth(column, template.getColumnWidth(column));
+  }
+
+  for (let row = 1; row <= rowCount; row += 1) {
+    sheet.setRowHeight(row, template.getRowHeight(row));
+  }
+
+  template
+    .getRange(1, 1, rowCount, columnCount)
+    .copyTo(sheet.getRange(1, 1, rowCount, columnCount), { formatOnly: true });
+
+  sheet.setFrozenRows(template.getFrozenRows());
+  sheet.setFrozenColumns(template.getFrozenColumns());
 }
 
 function getPersonalSheetName_(playerName) {
